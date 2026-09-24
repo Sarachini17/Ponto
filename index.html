@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ponto Eletrônico - PWA Tablet & Desktop</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#2563eb">
+  <link rel="stylesheet" href="css/styles.css">
+  <!-- Lucide Icons via CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+  <div id="app" class="app-container">
+    <!-- Top Bar Header with Status Indicators -->
+    <header class="top-bar">
+      <div class="brand">
+        <i data-lucide="clock" class="brand-icon"></i>
+        <h1>Ponto Eletrônico PWA</h1>
+      </div>
+
+      <div class="status-bar">
+        <div id="network-status" class="status-badge online" title="Status da Conexão">
+          <i data-lucide="wifi" class="icon-online"></i>
+          <i data-lucide="wifi-off" class="icon-offline" style="display:none;"></i>
+          <span id="network-text">Online</span>
+        </div>
+
+        <div id="printer-status" class="status-badge printer-ok" title="Status da Impressora Térmica">
+          <i data-lucide="printer" class="icon-printer"></i>
+          <span id="printer-text">Impressora Operacional</span>
+        </div>
+
+        <button id="btn-toggle-view" class="btn-secondary">
+          <i data-lucide="layout-dashboard"></i>
+          <span id="view-toggle-text">Painel do Gestor</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- PONTO REGISTRATION VIEW (TABLET/DESKTOP) -->
+      <section id="view-ponto" class="view-section active">
+        <div class="ponto-grid">
+          <!-- Left Column: Clock, Camera / Scanner -->
+          <div class="card card-clock-section">
+            <div class="live-clock">
+              <span id="current-time">00:00:00</span>
+              <span id="current-date">Carregando data...</span>
+            </div>
+
+            <!-- Camera Biometric Section -->
+            <div class="camera-container">
+              <video id="webcam" autoplay playsinline class="webcam-feed"></video>
+              <canvas id="photo-canvas" style="display:none;"></canvas>
+              <div id="camera-placeholder" class="camera-placeholder" style="display:none;">
+                <i data-lucide="camera-off"></i>
+                <p>Câmera Indisponível</p>
+              </div>
+            </div>
+
+            <!-- PIN / RFID Quick Entry -->
+            <div class="auth-input-group">
+              <div class="input-with-icon">
+                <i data-lucide="credit-card"></i>
+                <input type="text" id="employee-id-input" placeholder="Digite PIS, CPF, PIN ou Aproxime o RFID" autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <!-- Right Column: Event Selection & Punch Controls -->
+          <div class="card card-actions-section">
+            <h2>Selecione o Evento de Ponto</h2>
+            <div class="event-buttons-grid">
+              <button class="btn-event btn-entrada" data-event="ENTRADA">
+                <i data-lucide="log-in"></i>
+                <span>Entrada</span>
+              </button>
+              <button class="btn-event btn-intervalo-saida" data-event="SAIDA_INTERVALO">
+                <i data-lucide="coffee"></i>
+                <span>Saída Intervalo</span>
+              </button>
+              <button class="btn-event btn-intervalo-retorno" data-event="RETORNO_INTERVALO">
+                <i data-lucide="utensils"></i>
+                <span>Retorno Intervalo</span>
+              </button>
+              <button class="btn-event btn-saida" data-event="SAIDA">
+                <i data-lucide="log-out"></i>
+                <span>Saída Expediente</span>
+              </button>
+            </div>
+
+            <div id="punch-feedback" class="feedback-banner" style="display: none;"></div>
+
+            <!-- Recent punches list for quick verification -->
+            <div class="recent-punches-container">
+              <h3>Últimas Marcações Locais</h3>
+              <ul id="recent-punches-list" class="punches-list">
+                <li class="empty-list">Nenhuma marcação recente.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- MANAGER / HR DASHBOARD VIEW -->
+      <section id="view-gestao" class="view-section" style="display: none;">
+        <div class="dashboard-header">
+          <h2>Painel Gestor & RH</h2>
+          <div class="dashboard-actions">
+            <button id="btn-trigger-eod" class="btn-warning">
+              <i data-lucide="calendar-check"></i>
+              <span>Executar Apuração Diária (Faltas)</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="dashboard-grid">
+          <!-- Inconsistency Notifications Card -->
+          <div class="card">
+            <div class="card-title-bar">
+              <i data-lucide="alert-triangle" class="icon-warning"></i>
+              <h3>Alertas de Inconsistências</h3>
+            </div>
+            <ul id="inconsistencies-list" class="data-list">
+              <li class="empty-list">Nenhuma inconsistência detectada.</li>
+            </ul>
+          </div>
+
+          <!-- Medical Certificates & Allowances Card -->
+          <div class="card">
+            <div class="card-title-bar">
+              <i data-lucide="file-text"></i>
+              <h3>Gestão de Atestados e Abonos</h3>
+            </div>
+            <form id="form-atestado" class="form-atestado">
+              <div class="form-group">
+                <label for="atestado-employee">Funcionário</label>
+                <select id="atestado-employee" required>
+                  <option value="">Selecione o funcionário...</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label for="atestado-date">Data da Ausência</label>
+                <input type="date" id="atestado-date" required>
+              </div>
+              <div class="form-group">
+                <label for="atestado-motivo">Motivo / CID</label>
+                <input type="text" id="atestado-motivo" placeholder="Ex: Atestado Médico - CID J11" required>
+              </div>
+              <button type="submit" class="btn-primary">
+                <i data-lucide="upload"></i>
+                <span>Registrar Abono</span>
+              </button>
+            </form>
+            <div class="atestados-history">
+              <h4>Abonos Registrados</h4>
+              <ul id="atestados-list" class="data-list">
+                <li class="empty-list">Nenhum abono cadastrado.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- JUSTIFICATION MODAL (Exceed Tolerance RF-03) -->
+    <div id="modal-justificativa" class="modal-overlay" style="display: none;">
+      <div class="modal-content">
+        <div class="modal-header">
+          <i data-lucide="alert-circle" class="icon-alert"></i>
+          <h3>Justificativa Obrigatória</h3>
+        </div>
+        <div class="modal-body">
+          <p id="justificativa-message">Sua marcação excede a tolerância permitida. Por favor, informe a justificativa abaixo:</p>
+          <textarea id="justificativa-text" rows="4" placeholder="Descreva o motivo da divergência de horário..." required></textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-cancel-justificativa" class="btn-secondary">Cancelar</button>
+          <button id="btn-confirm-justificativa" class="btn-primary">Confirmar e Registrar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- HARDWARE / PRINTER ALERT MODAL (RF-08) -->
+    <div id="modal-hardware-alert" class="modal-overlay" style="display: none;">
+      <div class="modal-content modal-error">
+        <div class="modal-header">
+          <i data-lucide="printer" class="icon-error"></i>
+          <h3 id="hardware-alert-title">Alerta de Impressora</h3>
+        </div>
+        <div class="modal-body">
+          <p id="hardware-alert-message">Falha de impressão ou impressora sem papel.</p>
+          <p class="sub-message">O comprovante digital será enviado para o e-mail cadastrado do colaborador.</p>
+        </div>
+        <div class="modal-footer">
+          <button id="btn-close-hardware-alert" class="btn-primary">Entendido</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- JavaScript Modules -->
+  <script src="js/db.js"></script>
+  <script src="js/supabase-config.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/camera.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/printer.js"></script>
+  <script src="js/ponto.js"></script>
+  <script src="js/gestao.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
